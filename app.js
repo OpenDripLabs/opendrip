@@ -1,58 +1,55 @@
-const ESP_BASE = "http://192.168.1.200";
-
-let messages = JSON.parse(localStorage.getItem("chat_history")) || [];
-
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("send");
 
-function saveMessages() {
-  localStorage.setItem("chat_history", JSON.stringify(messages));
-}
-
-function addMessage(role, text) {
-  const msg = {
-    role,
-    text,
-    time: Date.now()
-  };
-
-  messages.push(msg);
-  saveMessages();
-  renderMessages();
-}
-
-function renderMessages() {
-  chat.innerHTML = "";
-  messages.forEach(m => {
+function addMessage(text, from) {
     const div = document.createElement("div");
-    div.className = m.role;
-    div.innerText = m.text;
+    div.className = from;
+    div.innerText = text;
     chat.appendChild(div);
-  });
-  chat.scrollTop = chat.scrollHeight;
+    chat.scrollTop = chat.scrollHeight;
 }
 
-sendBtn.onclick = async () => {
-  const text = input.value.trim();
-  if (!text) return;
+function detectIntent(text) {
+    text = text.toLowerCase();
 
-  input.value = "";
-  addMessage("user", text);
+    if (text.includes("acı")) return "too_bitter";
+    if (text.includes("zayıf")) return "too_weak";
+    if (text.includes("soğuk")) return "too_cold";
 
-  try {
-    const res = await fetch(`${ESP_BASE}/feedback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
+    return null;
+}
 
-    const data = await res.json();
-    addMessage("assistant", data.reply || "Tamam 👍");
+async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
 
-  } catch (e) {
-    addMessage("assistant", "ESP’ye bağlanamadım 😕");
-  }
-};
+    addMessage(text, "user");
+    input.value = "";
 
-renderMessages();
+    const intent = detectIntent(text);
+
+    if (!intent) {
+        addMessage("Ne demek istediğini anlayamadım.", "bot");
+        return;
+    }
+
+    try {
+        const res = await fetch("http://192.168.1.200/feedback", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ intent })
+        });
+
+        const data = await res.json();
+        addMessage(data.reply, "bot");
+
+    } catch (e) {
+        addMessage("ESP’ye bağlanamadım.", "bot");
+        console.error(e);
+    }
+}
+
+sendBtn.onclick = sendMessage;
