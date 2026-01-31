@@ -1,38 +1,58 @@
+const ESP_BASE = "http://192.168.1.200";
+
+let messages = JSON.parse(localStorage.getItem("chat_history")) || [];
+
 const chat = document.getElementById("chat");
-const input = document.getElementById("messageInput");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
 
-let history = JSON.parse(localStorage.getItem("history") || "[]");
+function saveMessages() {
+  localStorage.setItem("chat_history", JSON.stringify(messages));
+}
 
-history.forEach(addMessage);
+function addMessage(role, text) {
+  const msg = {
+    role,
+    text,
+    time: Date.now()
+  };
 
-function addMessage(msg) {
+  messages.push(msg);
+  saveMessages();
+  renderMessages();
+}
+
+function renderMessages() {
+  chat.innerHTML = "";
+  messages.forEach(m => {
     const div = document.createElement("div");
-    div.className = "msg " + msg.role;
-    div.innerText = msg.text;
+    div.className = m.role;
+    div.innerText = m.text;
     chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+  });
+  chat.scrollTop = chat.scrollHeight;
 }
 
-function sendMessage() {
-    const text = input.value.trim();
-    if (!text) return;
+sendBtn.onclick = async () => {
+  const text = input.value.trim();
+  if (!text) return;
 
-    const userMsg = { role: "user", text };
-    history.push(userMsg);
-    addMessage(userMsg);
+  input.value = "";
+  addMessage("user", text);
 
-    input.value = "";
-
-    fetch("https://BACKEND_URL/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history })
-    })
-    .then(r => r.json())
-    .then(res => {
-        const botMsg = { role: "bot", text: res.reply };
-        history.push(botMsg);
-        addMessage(botMsg);
-        localStorage.setItem("history", JSON.stringify(history));
+  try {
+    const res = await fetch(`${ESP_BASE}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
     });
-}
+
+    const data = await res.json();
+    addMessage("assistant", data.reply || "Tamam 👍");
+
+  } catch (e) {
+    addMessage("assistant", "ESP’ye bağlanamadım 😕");
+  }
+};
+
+renderMessages();
